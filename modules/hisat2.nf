@@ -8,7 +8,7 @@ process HISAT2_INDEX_REFERENCE {
     output:
     tuple path(reference), path("${reference.baseName}*.ht2")
     
-    require(["""#!/bin/python3
+    require(["""#!/usr/bin/env python3
 import sys
 import os
 

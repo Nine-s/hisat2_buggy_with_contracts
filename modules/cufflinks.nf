@@ -9,7 +9,7 @@ process CUFFLINKS {
     output:
     path('transcripts.gtf'), emit: cufflinks_gtf 
 
-    promise([RETURN(NOT(EMPTY_FILE('transcripts.gtf'))), """#!/bin/python3
+    promise([RETURN(NOT(EMPTY_FILE('transcripts.gtf'))), """#!/usr/bin/env python3
 import sys
 
 bag = dict()
