@@ -9,7 +9,7 @@ process FASTQC {
     output:
     path("*_fastqc.zip", emit: zip)
 
-    require(["""#!/usr/bin/env python3
+    require(["""exit 0
 import sys
 import os
 
