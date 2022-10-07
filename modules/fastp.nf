@@ -10,69 +10,28 @@ process FASTP {
     tuple val(name), path("${name}*.trimmed.fastq"), emit: sample_trimmed
     path "${name}_fastp.json", emit: json_report
 
-    require(["""exit 0
-import sys
-import os
-
-counter = 0
-length = 0
-for file in os.listdir():
-    if file.endswith(".fastq"):
-        with open(file) as f:
-            for line in f:
-                if counter == 0:
-                    if line[0] != "@" or line[1].isspace():
-                        sys.exit(1)
-                elif counter == 1:
-#                   if any(map(lambda x: x not in ["G", "A", "T", "C", "N"], line[:-1])):
-#                       sys.exit(1)
-                    length = len(line)
-                elif counter == 2:
-                    if line[0] != "+":
-                        sys.exit(1)
-                elif counter == 3:
-                    if len(line) != length:
-                        sys.exit(1)
-                counter = (counter + 1) % 4
-if counter != 0:
-    sys.exit(1)"""])
-    promise([FOR_ALL("f", ITER("*_fastp.json"), {f -> IF_THEN(EMPTY_FILE(f), "exit 1")}), FOR_ALL("f", ITER("*.trimmed.fastq"), {f -> IF_THEN(EMPTY_FILE(f), "exit 1")}), """exit 0
-import json
-import sys
-import os
-
-file = [f for f in os.listdir() if f.endswith("_fastp.json")][0]
-with open(file) as log:
-        j_dict = json.load(log)
-        summary = j_dict["summary"]
-        reads_before = summary["before_filtering"]["total_reads"]
-        reads_after = summary["after_filtering"]["total_reads"]
-        sys.exit(1 if (reads_before - reads_after) / reads_before > 0.95 else 0)""", """exit 0
-import sys
-import os
-
-counter = 0
-length = 0
-for file in os.listdir():
-    if file.endswith(".trimmed.fastq"):
-        with open(file) as f:
-            for line in f:
-                if counter == 0:
-                    if line[0] != "@" or line[1].isspace():
-                        sys.exit(1)
-                elif counter == 1:
-#                   if any(map(lambda x: x not in ["G", "A", "T", "C", "N"], line[:-1])):
-#                       sys.exit(1)
-                    length = len(line)
-                elif counter == 2:
-                    if line[0] != "+":
-                        sys.exit(1)
-                elif counter == 3:
-                    if len(line) != length:
-                        sys.exit(1)
-                counter = (counter + 1) % 4
-if counter != 0:
-    sys.exit(1)""", COMMAND_LOGGED_NO_ERROR(), INPUTS_NOT_CHANGED()])
+    require([
+	FOR_ALL("f", ITER("*.fastq"), 
+		{ f -> 
+			IF_THEN(
+				NOT(
+					EQUAL(
+						NUM("\$(( \$(wc -l $f | cut -d' ' -f1)/4*4 ))"), 
+						NUM("\$(wc -l $f | cut -d' ' -f1)")
+					)
+				), 
+				"exit 1"
+			)
+		}
+	), 
+	"""for file in *.fastq; do 
+		if ! awk 'BEGIN{c=0;} {if (c % 4 == 0 && substr(\$0,1,1) != "@" || substr(\$0,1,1) == "@ ") {exit 1} if (c % 4 == 1) {len = length(\$0)} if (c % 4 == 2 && substr(\$0,1,1) != "+") {exit 1} if (c % 4 == 3 && len != length(\$0)) {exit 1} c = c+1}' \$file; then 
+			exit 1; 
+		fi;
+	done"""
+])
+    promise([FOR_ALL("f", ITER("*_fastp.json"), {f -> IF_THEN(EMPTY_FILE(f), "exit 1")}), FOR_ALL("f", ITER("*.trimmed.fastq"), {f -> IF_THEN(EMPTY_FILE(f), "exit 1")}), "reads=\$(grep total_reads *.json | head -n2 | grep -Po '\\d*'); if [ \$(( \$(( \$(echo \$reads | cut -d' ' -f 1) - \$(echo \$reads | cut -d' ' -f 2))) * 100 / \$(echo \$reads | cut -d' ' -f 1) )) -gt 95 ]; then exit 1; fi", FOR_ALL("f", ITER("*.trimmed.fastq"), { f -> IF_THEN(NOT(EQUAL(NUM("\$((\$(wc -l $f | cut -d' ' -f1)/4*4))"), NUM("\$(wc -l $f | cut -d' ' -f1)"))), "exit 1")}), 
+	"""for file in *trimmed.fastq; do if ! awk 'BEGIN{c=0;} {if (c % 4 == 0 && substr(\$0,1,1) != "@" || substr(\$0,1,1) == "@ ") {exit 1} if (c % 4 == 1) {len = length(\$0)} if (c % 4 == 2 && substr(\$0,1,1) != "+") {exit 1} if (c % 4 == 3 && len != length(\$0)) {exit 1} c = c+1}' \$file; then exit 1; fi; done""", COMMAND_LOGGED_NO_ERROR(), INPUTS_NOT_CHANGED()])
 
     script:
     """
