@@ -9,21 +9,7 @@ process CUFFLINKS {
     output:
     path('transcripts.gtf'), emit: cufflinks_gtf 
 
-    promise([RETURN(NOT(EMPTY_FILE('transcripts.gtf'))), """#!/usr/bin/env python3
-import sys
-
-bag = dict()
-with open("transcripts.gtf") as t:
-    for line in t:
-        line = line.split()
-        if "FPKM" not in line:
-            continue
-        index = line.index("FPKM") + 1
-        if line[index] not in bag:
-            bag[line[index]] = 0
-        bag[line[index]] += 1
-if len(bag) < 2:
-    sys.exit(1)""", COMMAND_LOGGED_NO_ERROR(), INPUTS_NOT_CHANGED()])
+    promise([RETURN(NOT(EMPTY_FILE('transcripts.gtf'))), "if [ \$(grep -Eo 'FPKM \"[^\"]*\"' transcripts.gtf | sort | uniq -c | wc -l) -eq 1 ]; then exit 1; fi", COMMAND_LOGGED_NO_ERROR(), INPUTS_NOT_CHANGED()])
     
     script:
     """

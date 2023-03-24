@@ -8,15 +8,7 @@ process HISAT2_INDEX_REFERENCE {
     output:
     tuple path(reference), path("${reference.baseName}*.ht2")
     
-    require(["""#!/usr/bin/env python3
-import sys
-import os
-
-for file in [f for f in os.listdir() if f.endswith(".fa")]:
-        with open(file) as f:
-                for line in f:
-                        if line[0] not in [">", "A", "C", "T", "G", "U", "N", ";"]:
-                                sys.exit(1)"""])
+    require([FOR_ALL("f", ITER("*.fa"), { f -> IF_THEN(COND("grep -Ev '^[>ACTGUN;]' $f"), "exit 1") })])
     promise([COMMAND_LOGGED_NO_ERROR(), INPUTS_NOT_CHANGED()])
 
     script:
@@ -45,7 +37,7 @@ process HISAT2_ALIGN {
             { f ->
                 RETURN(
                     GREATER_THAN(
-                        NUM("\$(grep Overall " + f + " | grep -Eo '[0-9]*\\.[0-9]*%' | sed 's/.[0-9][0-9]%//g')"), 
+                        NUM("\$(grep Overall $f | grep -Eo '[0-9]*\\.[0-9]*%' | sed 's/.[0-9][0-9]%//g')"), 
                         NUM(5)
                     )
                 )
